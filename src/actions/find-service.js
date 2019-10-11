@@ -53,6 +53,13 @@ const run = ({ cli, info, args, env }) => {
 
               const desiredStatus = 'RUNNING'
 
+              serviceInstances[serviceName] = {
+                cluster,
+                runningTaskCount: 0,
+                instanceCount: 0,
+                instances: []
+              }
+
               ecs.listTasks(Object.assign({}, defaultOptions, { cluster, serviceName, desiredStatus }), (tasksError, tasksData) => {
                 if (tasksError) {
                   cli.warn('Tasks Error looking up services for cluster', cluster)
@@ -61,6 +68,8 @@ const run = ({ cli, info, args, env }) => {
 
                 if (tasksData && tasksData.taskArns && tasksData.taskArns.length > 0) {
                   cli.debug(`Found ${tasksData.taskArns.length} tasks running for service: ${serviceName}`)
+
+                  serviceInstances[serviceName]['runningTaskCount'] = tasksData.taskArns.length
 
                   ecs.describeTasks({ cluster, tasks: tasksData.taskArns }, (taskDetailsError, taskDetailsData) => {
                     if (taskDetailsError) {
@@ -74,6 +83,8 @@ const run = ({ cli, info, args, env }) => {
                         containerInstances.push(task.containerInstanceArn)
                       }
                     })
+
+                    serviceInstances[serviceName]['instanceCount'] = containerInstances.length
 
                     ecs.describeContainerInstances({ cluster, containerInstances }, (containerInstanceError, containerInstanceData) => {
                       if (containerInstanceError) {
@@ -95,19 +106,25 @@ const run = ({ cli, info, args, env }) => {
 
                             instancesData.Reservations.forEach(reservation => {
                               reservation.Instances.forEach(instance => {
-                                const { PublicIpAddress, PrivateIpAddress, Tags } = instance
+                                const { InstanceId, InstanceType, KeyName, LaunchTime, Placement, PublicIpAddress, PrivateIpAddress, Tags } = instance
+                                const { AvailabilityZone } = Placement
                                 const nameTag = Tags.find(tag => tag.Key === 'Name')
                                 const Name = nameTag ? nameTag.Value : 'No Name'
 
                                 resultData.push({
                                   Name,
+                                  InstanceId,
+                                  InstanceType,
+                                  KeyName,
+                                  LaunchTime,
+                                  AvailabilityZone,
                                   PublicIpAddress,
                                   PrivateIpAddress
                                 })
                               })
                             })
 
-                            serviceInstances[serviceName] = resultData
+                            serviceInstances[serviceName]['instances'] = resultData
 
                             cli.log(`Found service: '${serviceName}' running on ${resultData.length} instance(s):`)
                           }
