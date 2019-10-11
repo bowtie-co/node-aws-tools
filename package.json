@@ -1,0 +1,45 @@
+{
+  "name": "@bowtie/aws-tools",
+  "version": "0.0.1",
+  "description": "AWS CLI Tools",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bowtie-co/node-aws-tools.git"
+  },
+  "preferGlobal": true,
+  "bin": {
+    "aws-tools": "bin/aws-tools"
+  },
+  "standard": {
+    "ignore": [
+      "docs/*",
+      "test/*"
+    ]
+  },
+  "keywords": [
+    "aws",
+    "cli",
+    "tools",
+    "helpers",
+    "toolkit",
+    "bowtie"
+  ],
+  "author": "Bowtie",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/bowtie-co/node-aws-tools/issues"
+  },
+  "homepage": "https://github.com/bowtie-co/node-aws-tools#readme",
+  "dependencies": {
+    "async": "^3.1.0",
+    "aws-sdk": "^2.548.0",
+    "cmr1-cli": "^0.1.16"
+  },
+  "devDependencies": {
+    "standard": "^14.3.1"
+  }
+}
