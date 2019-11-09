@@ -16,6 +16,7 @@ const getArgFromCli = (cli, args, index, prompt, defaultValue = null, validateFn
     return val
   } else if (!defaultValue) {
     cli.warn(`Invalid arg:`, index, prompt)
+    return getArgFromCli(cli, args, index, prompt, defaultValue, validateFn)
   }
 
   return defaultValue
