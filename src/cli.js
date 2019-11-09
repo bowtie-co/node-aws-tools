@@ -3,6 +3,8 @@ const actions = require('./actions')
 const pkg = require('../package')
 const info = require('./info')
 
+const { makeHelpers } = require('./helpers')
+
 let cli
 
 const additionalOptions = [
@@ -63,7 +65,8 @@ const handleAction = (args) => {
       actions[action].run({
         cli,
         info,
-        args
+        args,
+        helpers: makeHelpers(cli, args)
       })
     } else {
       cli.warn(`Action: '${action}' is invalid`)
@@ -76,11 +79,12 @@ module.exports = {
   actions,
   handleAction,
   cli,
+  pkg,
   load: () => {
     cli = new Cmr1Cli({
-      name: 'AWS Tools',
+      name: pkg.name,
       version: pkg.version,
-      description: 'AWS CLI Tools - By Bowtie.co',
+      description: `${pkg.description}  [[italic]{${pkg.author}}]`,
       helpSections: {
         actions: Object.keys(actions).map(a => actions[a].description ? `${a} - [italic]{${actions[a].description}}` : a),
         usage: [

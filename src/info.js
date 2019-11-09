@@ -1,8 +1,10 @@
 const os = require('os')
 const fs = require('fs')
+const path = require('path')
 
 const info = {
   cwd: process.cwd(),
+  pkg: require(path.join(__dirname, '..', 'package')),
   os: {
     hostname: os.hostname(),
     platform: os.platform(),
@@ -10,7 +12,8 @@ const info = {
     type: os.type()
   },
   user: os.userInfo(),
-  context: {}
+  context: {},
+  installPath: path.join(__dirname, '..')
 }
 
 const files = fs.readdirSync(info.cwd)
@@ -30,6 +33,7 @@ files.forEach(file => {
 
   if (/package\.json/i.test(file)) {
     info.context.node = true
+    info.context.pkg = require(path.join(info.cwd, file))
   }
 
   if (/makefile/i.test(file)) {

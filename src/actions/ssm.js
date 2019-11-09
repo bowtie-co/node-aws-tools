@@ -1,36 +1,10 @@
 const AWS = require('aws-sdk')
-const path = require('path')
-const async = require('async')
 
-const pkg = require(path.join(__dirname, '..', '..', 'package.json'))
-
-const ecs = new AWS.ECS()
-const ec2 = new AWS.EC2()
 const ssm = new AWS.SSM()
 
-const run = ({ cli, info, args, env }) => {
-  const validateArgFn = (input) => (input && input.trim() !== '')
-
-  const getArg = (index, prompt, defaultValue = null, validateFn = validateArgFn) => {
-    if (defaultValue) {
-      prompt += '(optional) '
-    }
-
-    const val = args[index] || cli.prompt(prompt)
-
-    if (typeof validateFn !== 'function') {
-      cli.warn('Invalid validateFn supplied to getArg()')
-      validateFn = validateArgFn
-    }
-
-    if (validateFn(val)) {
-      return val
-    } else {
-      cli.warn(`Invalid arg:`, index, prompt)
-    }
-
-    return defaultValue
-  }
+const run = ({ cli, info, args, env, helpers }) => {
+  const { pkg } = info
+  const { getArg } = helpers
 
   const getSsmAction = () => {
     return getArg(0, 'SSM Action (ls|new|get|rm): ').toLowerCase()
@@ -68,7 +42,7 @@ const run = ({ cli, info, args, env }) => {
         ]
       }, (err, data) => {
         if (err) {
-          cli.warn(err.message || err)
+          cli.warn(err.message || err.code || err)
         } else {
           const { Parameters } = data
 
@@ -100,7 +74,7 @@ const run = ({ cli, info, args, env }) => {
         Value: value
       }, (err, data) => {
         if (err) {
-          cli.warn(err.message || err)
+          cli.warn(err.message || err.code || err)
 
           if (err.message && /parameter already exists/.test(err.message)) {
             cli.warn('Use --force option to enable secure parameter updates (overwriting)')
@@ -129,7 +103,7 @@ const run = ({ cli, info, args, env }) => {
         WithDecryption: true
       }, (err, data) => {
         if (err) {
-          cli.warn(err.message || err)
+          cli.warn(err.message || err.code || err)
         } else {
           const { Parameter } = data
 
@@ -154,7 +128,7 @@ const run = ({ cli, info, args, env }) => {
           Name: name /* required */
         }, (err, data) => {
           if (err) {
-            cli.warn(err.message || err)
+            cli.warn(err.message || err.code || err)
           } else {
             cli.success(`Destroyed secure parameter: '${name}'`)
           }
