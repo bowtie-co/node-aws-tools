@@ -1,166 +1,182 @@
 const AWS = require('aws-sdk')
+const path = require('path')
 const async = require('async')
+
+const pkg = require(path.join(__dirname, '..', '..', 'package.json'))
 
 const ecs = new AWS.ECS()
 const ec2 = new AWS.EC2()
 const ssm = new AWS.SSM()
 
 const run = ({ cli, info, args, env }) => {
-  if (args.length > 0) {
-    const action = args[0].toLowerCase()
-    let name, value, params
+  const validateArgFn = (input) => (input && input.trim() !== '')
 
-    switch (action) {
-      case 'ls':
-      case 'all':
-      case 'list':
-        params = {
-          MaxResults: 50,
-          Filters: [
-            {
-              Key: 'Type',
-              Values: [
-                'SecureString'
-              ]
-            }
-          ]
-        }
+  const getArg = (index, prompt, defaultValue = null, validateFn = validateArgFn) => {
+    if (defaultValue) {
+      prompt += '(optional) '
+    }
 
-        ssm.describeParameters(params, (err, data) => {
-          if (err) {
-            cli.error(err)
+    const val = args[index] || cli.prompt(prompt)
+
+    if (typeof validateFn !== 'function') {
+      cli.warn('Invalid validateFn supplied to getArg()')
+      validateFn = validateArgFn
+    }
+
+    if (validateFn(val)) {
+      return val
+    } else {
+      cli.warn(`Invalid arg:`, index, prompt)
+    }
+
+    return defaultValue
+  }
+
+  const getSsmAction = () => {
+    return getArg(0, 'SSM Action (ls|new|get|rm): ').toLowerCase()
+  }
+
+  const getParamName = () => {
+    return getArg(1, 'Parameter Name: ', null, (name) => /^[a-zA-Z0-9_\.\-]+$/.test(name))
+  }
+
+  const getParamValue = () => {
+    return getArg(2, 'Parameter Value: ')
+  }
+
+  const getParamDesc = () => {
+    return getArg(3, 'Parameter Description: ', `Created by ${pkg.name}@${pkg.version}`)
+  }
+
+  const action = getSsmAction()
+
+  let name, value, description
+
+  switch (action) {
+    case 'ls':
+    case 'all':
+    case 'list':
+      ssm.describeParameters({
+        MaxResults: 50,
+        Filters: [
+          {
+            Key: 'Type',
+            Values: [
+              'SecureString'
+            ]
           }
-
+        ]
+      }, (err, data) => {
+        if (err) {
+          cli.warn(err.message || err)
+        } else {
           const { Parameters } = data
 
           const paramList = Parameters.map(param => param.Name)
 
-          cli.success('Secure params:', JSON.stringify(paramList, null, 2))
-        });
-
-        break
-      case 'new':
-      case 'add':
-      case 'make':
-      case 'create':
-        if (args.length === 1) {
-          cli.error('Missing param name')
+          cli.success('Available secure parameters:', JSON.stringify(paramList, null, 2))
         }
+      })
 
-        name = args[1]
+      break
+    case 'new':
+    case 'add':
+    case 'set':
+    case 'make':
+    case 'create':
+    case 'update':
+      // TODO: Support additional params for create? (AllowedPattern, KeyId, Policies, Tags, Tier)
+      name = getParamName()
+      value = getParamValue()
+      description = getParamDesc()
 
-        if (!/^[a-zA-Z0-9_\.\-]+$/.test(name)) {
-          cli.error(`Invalid param name: '${name}'`)
-        }
+      cli.log(`Adding new secure parameter:`, { [name]: value }, { description })
 
-        if (args.length > 2) {
-          value = args[2]
+      ssm.putParameter({
+        Name: name,
+        Type: 'SecureString', // Allow as arg/option? 'String' | 'StringList',
+        Description: description,
+        Overwrite: !!cli.options.force,
+        Value: value
+      }, (err, data) => {
+        if (err) {
+          cli.warn(err.message || err)
 
-          cli.log(`Adding new param named: '${name}' with value: '${value}'`)
-
-          const params = {
-            Name: name,
-            Type: 'SecureString', // Allow as arg/option? 'String' | 'StringList',
-            Description: args[3] || 'Created by: @bowtie/aws-tools', // Allow as arg/option?
-            Value: value
+          if (err.message && /parameter already exists/.test(err.message)) {
+            cli.warn('Use --force option to enable secure parameter updates (overwriting)')
           }
-
-          ssm.putParameter(params, (err, data) => {
-            if (err) {
-              cli.error(err)
-            }
-
-            cli.success(`Created secure param: ${name}=${value} [version: ${data.Version}]`)
-            cli.success({
-              [name]: value
-            })
-          });
         } else {
-          cli.error('Not enough args')
+          cli.success(`Created  secure parameter: [version: ${data.Version}]`)
+          cli.success({
+            [name]: value
+          })
+          cli.success({
+            description
+          })
         }
-        break
-      case 'get':
-      case 'show':
-      case 'view':
-      case 'load':
-        if (args.length === 1) {
-          cli.error('Missing param name')
-        }
+      })
+      break
+    case 'get':
+    case 'show':
+    case 'view':
+    case 'load':
+      name = getParamName()
 
-        name = args[1]
+      cli.log(`Looking for secure parameter: '${name}'`)
 
-        if (!/^[a-zA-Z0-9_\.\-]+$/.test(name)) {
-          cli.error(`Invalid param name: '${name}'`)
-        }
-
-        cli.log(`Looking for param named: '${name}'`)
-
-        params = {
-          Name: name, /* required */
-          WithDecryption: true
-        };
-
-        ssm.getParameter(params, (err, data) => {
-          if (err) {
-            cli.error(err)
-          }
-
+      ssm.getParameter({
+        Name: name, /* required */
+        WithDecryption: true
+      }, (err, data) => {
+        if (err) {
+          cli.warn(err.message || err)
+        } else {
           const { Parameter } = data
 
-          cli.success(`Secure param: ${Parameter.Name}=${Parameter.Value} [version: ${Parameter.Version} | arn: ${Parameter.ARN}]`)
+          cli.success(`Found secure parameter: [version: ${Parameter.Version} | arn: ${Parameter.ARN}]`)
           cli.success({
             [Parameter.Name]: Parameter.Value
           })
-        });
-        break
-      case 'rm':
-      case 'delete':
-      case 'remove':
-      case 'destroy':
-        if (args.length === 1) {
-          cli.error('Missing param name')
         }
+      })
+      break
+    case 'rm':
+    case 'del':
+    case 'delete':
+    case 'remove':
+    case 'destroy':
+      name = getParamName()
 
-        name = args[1]
-
-        if (!/^[a-zA-Z0-9_\.\-]+$/.test(name)) {
-          cli.error(`Invalid param name: '${name}'`)
-        }
-
-        if (!cli.confirm(`Are you sure you want to destroy the secure param: ${name}`)) {
-          cli.error('ABORT')
-        }
-
-        params = {
+      if (!cli.confirm(`Destroying parameter: '${name}' cannot be undone! Are you sure? `)) {
+        cli.warn(`Not destroying parameter: '${name}'`)
+      } else {
+        ssm.deleteParameter({
           Name: name /* required */
-        }
-
-        ssm.deleteParameter(params, (err, data) => {
+        }, (err, data) => {
           if (err) {
-            cli.error(err)
+            cli.warn(err.message || err)
+          } else {
+            cli.success(`Destroyed secure parameter: '${name}'`)
           }
-
-          cli.success(`Secure param destroyed: ${name}`)
         })
+      }
 
-        break
-      default:
-        cli.error(`Unknown SSM action: '${action}'`)
-        break
-    }
-  } else {
-    cli.error('Missing SSM action')
+      break
+    default:
+      cli.warn(`Unknown SSM action: '${action}'`)
+      break
   }
 }
 
 module.exports = {
   run,
-  description: 'Find EC2 instance(s) where ECS service is running',
+  description: 'Manage SSM SecureString Parameters',
   examples: [
-    'aws-tools ssm ACTION [NAME] [VALUE] [DESC]',
+    'aws-tools ssm [ACTION] [NAME] [VALUE] [DESC]',
     'aws-tools ssm list',
     'aws-tools ssm get ExistingSecret',
     'aws-tools ssm add NewSecret "abc-123"',
-    'aws-tools ssm add AnotherSecret "secret" "Database password"'
+    'aws-tools ssm add AnotherSecret "secret" "Database password"',
+    'aws-rools ssm rm AnotherSecret'
   ]
 }
