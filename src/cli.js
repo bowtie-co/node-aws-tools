@@ -37,6 +37,14 @@ const additionalOptions = [
     type: String,
     description: 'AWS region',
     typeLabel: '[underline]{region}'
+  },
+  {
+    name: 'interval',
+    alias: 'i',
+    type: Number,
+    defaultValue: 10000,
+    description: 'Monitor interval',
+    typeLabel: '[underline]{interval} (ms)'
   }
 ]
 

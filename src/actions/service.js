@@ -74,7 +74,7 @@ const stackContext = (StackName, region) => {
 const serviceContext = (options) => {
   return new Promise(
     async (resolve, reject) => {
-      const { service, region } = options
+      const { service, region, interval } = options
 
       if (!service || service.trim() === '') {
         reject(new Error('Missing service name'))
@@ -105,6 +105,7 @@ const serviceContext = (options) => {
         apiConfig,
         service,
         region,
+        interval,
         serviceStack,
         serviceEndpoint,
         Build,
@@ -119,7 +120,7 @@ const run = async ({ cli, info, args, env, helpers }) => {
   const { getArg } = helpers
 
   try {
-    const { service, region, Build, Deploy } = await serviceContext(cli.options)
+    const { service, region, interval, Build, Deploy } = await serviceContext(cli.options)
 
     const getServiceAction = () => {
       return getArg(0, 'Service Action (builds|deploys|update): ').toLowerCase()
@@ -191,7 +192,9 @@ const run = async ({ cli, info, args, env, helpers }) => {
           return
         }
 
-        if (cli.confirm(`Deploy tag: '${tag}' to stack(s): ${targetStacks.join(', ')}?`) || cli.options.force) {
+        cli.warn(`Deploy tag: '${tag}' to stack(s): ${targetStacks.join(', ')}?`)
+
+        if (cli.confirm('Continue?') || cli.options.force) {
           cli.log(`Deploying: '${tag}' to: ${targetStacks.join(', ')}`)
 
           const deploys = []
@@ -247,11 +250,11 @@ const run = async ({ cli, info, args, env, helpers }) => {
                     next()
                   } else {
                     cli.warn(`[${stackData.StackStatus}] - ${deploy.stack} (${deploy.tag})`)
-                    setTimeout(checkStatus, 5000)
+                    setTimeout(checkStatus, interval)
                   }
                 }
 
-                setTimeout(checkStatus, 5000)
+                setTimeout(checkStatus, interval)
               }).catch(next)
             }, err => {
               if (err) {
