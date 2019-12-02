@@ -131,7 +131,7 @@ const run = async ({ cli, info, args, env, helpers }) => {
     }
 
     const getVersionTag = () => {
-      return getArg(2, 'Version Tag: ', null, (tag) => /^[a-zA-Z0-9_\-]+$/.test(tag))
+      return getArg(2, 'Version Tag: ', null, (tag) => /^[a-zA-Z0-9_\.\-]+$/.test(tag))
     }
 
     // const getParamDesc = () => {
