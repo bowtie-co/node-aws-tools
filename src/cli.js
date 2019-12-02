@@ -30,6 +30,13 @@ const additionalOptions = [
     type: String,
     description: 'ECS cluster name (or ARN)',
     typeLabel: '[underline]{cluster}'
+  },
+  {
+    name: 'region',
+    alias: 'r',
+    type: String,
+    description: 'AWS region',
+    typeLabel: '[underline]{region}'
   }
 ]
 

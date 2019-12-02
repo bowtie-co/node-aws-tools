@@ -1,10 +1,12 @@
 const AWS = require('aws-sdk')
 const async = require('async')
 
-const ecs = new AWS.ECS()
-const ec2 = new AWS.EC2()
-
 const run = ({ cli, info, args, env }) => {
+  const { region } = cli.options
+
+  const ecs = new AWS.ECS({ region })
+  const ec2 = new AWS.EC2({ region })
+
   if (!cli.options.service || cli.options.service.trim() === '') {
     cli.warn('Missing service name (or ARN)')
     cli.showHelp()

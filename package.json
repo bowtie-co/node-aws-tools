@@ -35,6 +35,7 @@
   },
   "homepage": "https://github.com/bowtie-co/node-aws-tools#readme",
   "dependencies": {
+    "@bowtie/sls": "^0.3.0",
     "async": "^3.1.0",
     "aws-sdk": "^2.548.0",
     "cmr1-cli": "^0.1.16"

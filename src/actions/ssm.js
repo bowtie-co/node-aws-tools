@@ -1,10 +1,11 @@
 const AWS = require('aws-sdk')
 
-const ssm = new AWS.SSM()
-
 const run = ({ cli, info, args, env, helpers }) => {
   const { pkg } = info
   const { getArg } = helpers
+  const { region } = cli.options
+
+  const ssm = new AWS.SSM({ region })
 
   const getSsmAction = () => {
     return getArg(0, 'SSM Action (ls|new|get|rm): ').toLowerCase()

@@ -3,4 +3,9 @@
 const cli = require('../')
 
 cli.load()
-cli.run()
+
+try {
+  cli.run()
+} catch (err) {
+  cli.warn(err.message || err)
+}
