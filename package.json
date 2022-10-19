@@ -12,7 +12,8 @@
   },
   "preferGlobal": true,
   "bin": {
-    "aws-tools": "bin/aws-tools"
+    "aws-tools": "bin/aws-tools",
+    "ssh-to-service": "bin/ssh-to-service"
   },
   "standard": {
     "ignore": [

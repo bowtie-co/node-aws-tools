@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# COLORS! :)
+red='\033[0;31m'
+cyan='\033[0;36m'
+blue='\033[0;34m'
+yellow='\033[0;33m'
+nocolor='\033[0m'
+
+confirmYes() {
+  echo ""
+  msg="${1:-Are you sure?}"
+  read -r -p "${msg} [Y/n] " response
+  case "$response" in
+    [nN][oO]|[nN])
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+error() {
+  prefix="[ERROR] "
+  echo
+  echo -e "${red}${prefix}${1}${nocolor}"
+  echo
+}
+
+warn() {
+  prefix="[WARNING] "
+  echo
+  echo -e "${yellow}${prefix}${1}${nocolor}"
+  echo
+}
+
+log() {
+  prefix="[INFO] "
+  echo
+  echo -e "${cyan}${prefix}${1}${nocolor}"
+  echo
+}
+
+current_user=$(whoami)
+bastion=$1
+service=$2
+ssh_user=${3:-$current_user}
+
+if [[ "$bastion" == "" ]]; then
+  error "Please specify a bastion! (Usage: ssh-to-service <BASTION> <SERVICE> [<SSH_USER>])"
+  exit 1
+fi
+
+if [[ "$service" == "" ]]; then
+  error "Please specify a service! (Usage: ssh-to-service <BASTION> <SERVICE> [<SSH_USER>])"
+  exit 1
+fi
+
+service_data=$(FORCE_COLOR=0 npx aws-tools find-service -s $service)
+service_list=$(echo "$service_data" | grep "service/" | grep -v "Found service" | sed -E 's/"arn.*:service\/([^"]+)": \{/\1/g' | sed 's/ *//g')
+service_count=$(echo "$service_list" | wc -l)
+
+if [[ $service_count -gt 1 ]]; then
+  warn "Found multiple services matching: '$service'"
+  log "Please select one of the following services and try again:\n$service_list"
+  exit 1
+fi
+
+echo $service_list | grep "\-production" > /dev/null
+
+if [[ "$?" == "0" ]]; then
+  warn "You are connecting to a production service! (Using SSH bastion: $bastion)"
+
+  if confirmYes "Are you sure you wish to continue?"; then
+    log "May the force be with you..."
+  else
+    warn "Aborting"
+    exit
+  fi
+fi
+
+private_ips=$(echo "$service_data" | grep PrivateIpAddress | sed -E 's/.*"([0-9\.]+)"/\1/g')
+private_ips_count=$(echo "$private_ips" | wc -l)
+
+log "Found service '$service_list' running on $private_ips_count private IP(s):\n$private_ips"
+
+ssh_ip="$private_ips"
+
+if [[ $private_ips_count -gt 1 ]]; then
+  ssh_ip=$(echo "$private_ips" | head -1)
+
+  warn "Multiple Private IP's found! Using first found: $ssh_ip"
+fi
+
+ssh_ip=$(echo "$ssh_ip" | sed -E 's/.*m([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+).*/\1/g' | sed 's/ *//g')
+
+if [[ "$ssh_ip" == "" ]]; then
+  error "Missing/invalid ssh_ip found: '$ssh_ip'"
+  exit 1
+else
+  log "Preparing to execute: ssh -At $ssh_user@$bastion 'ssh -t $ssh_user@$ssh_ip \'/opt/ssh/ssh_proxy.sh $service\' '"
+
+  if confirmYes "Continue?"; then
+    log "Connecting to cluster instance running service: $service_list ..."
+    ssh -At $ssh_user@$bastion "/opt/ssh/ssh_proxy.sh $ssh_ip $service $ssh_user"
+
+    ssh_ret=$?
+
+    if [[ "$ssh_ret" != "0" ]]; then
+      log "SSH tunnel command exited with non-zero code: '$ssh_ret'"
+    else
+      log "Closing SSH tunnel ..."
+    fi
+  else
+    warn "Aborting SSH to service ..."
+    exit
+  fi
+fi
